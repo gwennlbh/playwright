@@ -1575,6 +1575,12 @@ state snapshot. The captured credentials carry their private keys, so they can b
 [`option: Browser.newContext.storageState`] option or [`method: BrowserContext.setStorageState`].
 Note that restoring the storage state that contains credentials will automatically install the virtual WebAuthn authenticator (see [`method: Credentials.install`]), and prevent all real authenticators from working in this context.
 
+### option: BrowserContext.storageState.opfs
+* since: v1.61
+- `opfs` ?<boolean>
+
+Set to `true` to include [Origin private file system](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system) in the storage state snapshot.
+
 ## async method: BrowserContext.setStorageState
 * since: v1.59
 

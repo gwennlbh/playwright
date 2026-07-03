@@ -1603,13 +1603,13 @@ export type BrowserContextSetOfflineOptions = {
 export type BrowserContextSetOfflineResult = void;
 export type BrowserContextStorageStateParams = {
   indexedDB?: boolean,
+  opfs?: boolean,
   credentials?: boolean,
-  opfs?: boolean
 };
 export type BrowserContextStorageStateOptions = {
   indexedDB?: boolean,
+  opfs?: boolean,
   credentials?: boolean,
-  opfs?: boolean
 };
 export type BrowserContextStorageStateResult = {
   cookies: NetworkCookie[],
@@ -5153,35 +5153,24 @@ export type IndexedDBDatabase = {
 };
 
 export type FSEntry = {
-  type: 'file' | 'folder';
-  name: string;
+  type: 'file' | 'folder',
+  base64?: string,
+  contentType?: string,
+  entries: FSEntry[],
 };
-
-export type FSFile = FSEntry & {
-  type: 'file';
-  base64: string;
-  contentType: string;
-  lastModified: number;
-};
-
-export type FSFolder = FSEntry & {
-  type: 'folder';
-  entries: (FSFile | FSFolder)[];
-};
-
 
 export type SetOriginStorage = {
   origin: string,
+  opfs?: FSEntry,
   localStorage: NameValue[],
   indexedDB?: IndexedDBDatabase[],
-  opfs?: FSFolder
 };
 
 export type OriginStorage = {
   origin: string,
+  opfs?: FSEntry,
   localStorage: NameValue[],
   indexedDB?: IndexedDBDatabase[],
-  opfs?: FSFolder
 };
 
 export type RecordHarOptions = {
@@ -5589,3 +5578,4 @@ export interface WorkerEvents {
   'console': WorkerConsoleEvent;
   'close': WorkerCloseEvent;
 }
+

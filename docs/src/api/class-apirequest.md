@@ -78,6 +78,11 @@ Methods like [`method: APIRequestContext.get`] take the base URL into considerat
     - `localStorage` <[Array]<[Object]>>
       - `name` <[string]>
       - `value` <[string]>
+    - `opfs` <[Object]>
+      - `type` <[FSEntryType]<"file"|"folder">> Type of the entry. "folder" for the root of the OPFS
+      - `base64` ?<[string]> Contents of the file, for "file" entries
+      - `contentType` ?<[string]> Content type of the file, for "file" entries
+      - `entries` ?<[Array]<[Object]<[string], [any]>>> Array of child entries (recursive), for "folder" entries
 
 Populates context with given storage state. This option can be used to initialize context with logged-in information
 obtained via [`method: BrowserContext.storageState`] or [`method: APIRequestContext.storageState`]. Either a path to the
@@ -93,6 +98,7 @@ Populates context with given storage state. This option can be used to initializ
 obtained via [`method: BrowserContext.storageState`] or [`method: APIRequestContext.storageState`]. Either a path to the
 file with saved storage, or the value returned by one of [`method: BrowserContext.storageState`] or
 [`method: APIRequestContext.storageState`] methods.
+
 
 ### option: APIRequest.newContext.storageStatePath = %%-csharp-java-context-option-storage-state-path-%%
 * since: v1.18

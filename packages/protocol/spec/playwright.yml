@@ -337,10 +337,26 @@ IndexedDBDatabase:
                 multiEntry: boolean
                 unique: boolean
 
+FSEntry:
+  type: object
+  properties:
+    type:
+      type: enum
+      literals:
+      - file
+      - folder
+    base64: string?
+    contentType: string?
+    entries:
+      type: array
+      # TODO: recursive types
+      items: FSEntry
+
 SetOriginStorage:
   type: object
   properties:
     origin: string
+    opfs: FSEntry?
     localStorage:
       type: array
       items: NameValue
@@ -352,6 +368,7 @@ OriginStorage:
   type: object
   properties:
     origin: string
+    opfs: FSEntry?
     localStorage:
       type: array
       items: NameValue

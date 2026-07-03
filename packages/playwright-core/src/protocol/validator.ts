@@ -340,6 +340,7 @@ scheme.APIRequestContextFetchLogResult = tObject({
 });
 scheme.APIRequestContextStorageStateParams = tObject({
   indexedDB: tOptional(tBoolean),
+  opfs: tOptional(tBoolean),
 });
 scheme.APIRequestContextStorageStateResult = tObject({
   cookies: tArray(tType('NetworkCookie')),
@@ -847,6 +848,7 @@ scheme.BrowserContextSetOfflineParams = tObject({
 scheme.BrowserContextSetOfflineResult = tOptional(tObject({}));
 scheme.BrowserContextStorageStateParams = tObject({
   indexedDB: tOptional(tBoolean),
+  opfs: tOptional(tBoolean),
   credentials: tOptional(tBoolean),
 });
 scheme.BrowserContextStorageStateResult = tObject({
@@ -2911,13 +2913,21 @@ scheme.IndexedDBDatabase = tObject({
     })),
   })),
 });
+scheme.FSEntry = tObject({
+  type: tEnum(['file', 'folder']),
+  base64: tOptional(tString),
+  contentType: tOptional(tString),
+  entries: tArray(tType('FSEntry')),
+});
 scheme.SetOriginStorage = tObject({
   origin: tString,
+  opfs: tOptional(tType('FSEntry')),
   localStorage: tArray(tType('NameValue')),
   indexedDB: tOptional(tArray(tType('IndexedDBDatabase'))),
 });
 scheme.OriginStorage = tObject({
   origin: tString,
+  opfs: tOptional(tType('FSEntry')),
   localStorage: tArray(tType('NameValue')),
   indexedDB: tOptional(tArray(tType('IndexedDBDatabase'))),
 });

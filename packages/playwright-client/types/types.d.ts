@@ -9743,6 +9743,13 @@ export interface BrowserContext {
     indexedDB?: boolean;
 
     /**
+     * Set to `true` to include
+     * [Origin private file system](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system)
+     * in the storage state snapshot.
+     */
+    opfs?: boolean;
+
+    /**
      * The file path to save the storage state to. If
      * [`path`](https://playwright.dev/docs/api/class-browsercontext#browser-context-storage-state-option-path) is a
      * relative path, then it is resolved relative to current working directory. If no path is provided, storage state is
@@ -17560,6 +17567,28 @@ export interface APIRequest {
 
           value: string;
         }>;
+
+        opfs: {
+          /**
+           * Type of the entry. "folder" for the root of the OPFS
+           */
+          type: "file"|"folder";
+
+          /**
+           * Contents of the file, for "file" entries
+           */
+          base64?: string;
+
+          /**
+           * Content type of the file, for "file" entries
+           */
+          contentType?: string;
+
+          /**
+           * Array of child entries (recursive), for "folder" entries
+           */
+          entries?: Array<{ [key: string]: any; }>;
+        };
       }>;
     };
 
@@ -18333,6 +18362,11 @@ export interface APIRequestContext {
      * Set to `true` to include IndexedDB in the storage state snapshot.
      */
     indexedDB?: boolean;
+
+    /**
+     * Set to `true` to include OPFS in the storage state snapshot.
+     */
+    opfs?: boolean;
 
     /**
      * The file path to save the storage state to. If

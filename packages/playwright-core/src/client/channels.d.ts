@@ -702,11 +702,11 @@ export type APIRequestContextFetchLogResult = {
 };
 export type APIRequestContextStorageStateParams = {
   indexedDB?: boolean,
-  opfs?: boolean
+  opfs?: boolean,
 };
 export type APIRequestContextStorageStateOptions = {
   indexedDB?: boolean,
-  opfs?: boolean
+  opfs?: boolean,
 };
 export type APIRequestContextStorageStateResult = {
   cookies: NetworkCookie[],
@@ -1600,13 +1600,13 @@ export type BrowserContextSetOfflineOptions = {
 export type BrowserContextSetOfflineResult = void;
 export type BrowserContextStorageStateParams = {
   indexedDB?: boolean,
-  credentials?: boolean,
   opfs?: boolean,
+  credentials?: boolean,
 };
 export type BrowserContextStorageStateOptions = {
   indexedDB?: boolean,
-  credentials?: boolean,
   opfs?: boolean,
+  credentials?: boolean,
 };
 export type BrowserContextStorageStateResult = {
   cookies: NetworkCookie[],
@@ -5149,14 +5149,23 @@ export type IndexedDBDatabase = {
   }[],
 };
 
+export type FSEntry = {
+  type: 'file' | 'folder',
+  base64?: string,
+  contentType?: string,
+  entries: FSEntry[],
+};
+
 export type SetOriginStorage = {
   origin: string,
+  opfs?: FSEntry,
   localStorage: NameValue[],
   indexedDB?: IndexedDBDatabase[],
 };
 
 export type OriginStorage = {
   origin: string,
+  opfs?: FSEntry,
   localStorage: NameValue[],
   indexedDB?: IndexedDBDatabase[],
 };
@@ -5566,3 +5575,4 @@ export interface WorkerEvents {
   'console': WorkerConsoleEvent;
   'close': WorkerCloseEvent;
 }
+
