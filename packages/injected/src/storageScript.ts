@@ -43,32 +43,23 @@ type IndexedDBDatabase = {
 };
 
 export type FSEntry = {
-  type: 'file' | 'folder';
-  name: string;
-};
-
-export type FSFile = FSEntry & {
-  type: 'file';
-  base64: string;
-  contentType: string;
-};
-
-export type FSFolder = FSEntry & {
-  type: 'folder';
-  entries: (FSFile | FSFolder)[];
+  filepath: string,
+  type: 'file' | 'empty-folder',
+  base64?: string,
+  contentType?: string,
 };
 
 type SetOriginStorage = {
   origin: string,
   localStorage: NameValue[],
   indexedDB?: IndexedDBDatabase[],
-  opfs?: FSFolder
+  opfs?: FSEntry[]
 };
 
 export type SerializedStorage = {
   localStorage: NameValue[],
   indexedDB?: IndexedDBDatabase[],
-  opfs?: FSFolder
+  opfs?: FSEntry[]
 };
 
 export class StorageScript {
@@ -86,6 +77,30 @@ export class StorageScript {
       request.addEventListener('success', () => resolve(request.result));
       request.addEventListener('error', () => reject(request.error));
     });
+  }
+
+  private async _opfsHandleViaAbsolutePath(root: FileSystemDirectoryHandle, entry: FSEntry): Promise<FileSystemDirectoryHandle | FileSystemFileHandle> {
+    const parents = entry.filepath.split('/');
+    if (parents.shift() !== '')
+      throw new Error('path doesnt start with /');
+
+    const filename = parents.pop();
+    if (!filename)
+      throw new Error('called on empty path');
+
+    let base = root;
+
+    // create all parent directories (as needed ofc)
+    while (parents.length > 0)
+      base = await base.getDirectoryHandle(parents.shift()!, { create: true });
+
+
+    if (entry.type === 'empty-folder')
+      return base.getDirectoryHandle(filename, { create: true });
+    else
+      return base.getFileHandle(filename, { create: true });
+
+
   }
 
   private _isPlainObject(v: any) {
@@ -184,32 +199,29 @@ export class StorageScript {
     };
   }
 
-  private async _collectOPFS(root: FileSystemDirectoryHandle): Promise<FSFolder> {
-    async function walk(base: FileSystemDirectoryHandle) {
-      const tree: Array<FSFile|FSFolder> = [];
+  private async _collectOPFS(root: FileSystemDirectoryHandle): Promise<FSEntry[]> {
+    async function walk(path: string, base: FileSystemDirectoryHandle) {
+      const tree: FSEntry[] = [];
 
       for await (const [name, entry] of base) {
+        const basepath = `${path}/${name}`;
+
         if (entry instanceof FileSystemFileHandle) {
           tree.push(
-              await serializeFile(await entry.getFile())
+              await serializeFile(basepath, await entry.getFile())
           );
         } else {
-          tree.push({
-            type: 'folder',
-            name, entries: await walk(entry)
-          });
+          tree.push(
+              ...(await walk(basepath, entry))
+          );
         }
 
       }
 
-      return walk(base);
+      return tree;
     }
 
-    return {
-      type: 'folder',
-      name: '',
-      entries: await walk(root)
-    };
+    return await walk('/', root);
   }
 
   async collect(record: {indexedDB: boolean, opfs: boolean}): Promise<SerializedStorage> {
@@ -267,25 +279,18 @@ export class StorageScript {
     }));
   }
 
-  private async _restoreOPFS(tree: FSFolder) {
-    async function walk(base: FileSystemDirectoryHandle, tree: FSFolder) {
+  private async _restoreOPFS(tree: FSEntry[]) {
+    const root = await this._global.navigator.storage.getDirectory();
 
-      for (const entry of tree.entries) {
-        if (entry.type === 'file') {
-          const handle = await base.getFileHandle(entry.name, { create: true });
-          const writable = await handle.createWritable();
-          const writer = writable.getWriter();
-          await writer.write(parseSerializedFile(entry));
-          await writer.close()
-        } else {
-          const directory = await base.getDirectoryHandle(entry.name, { create: true });
-          await walk(directory, entry);
-        }
+    // Sorting the tree by filepath should be enough to create parent folders before needing them for children entries
+    for (const entry of tree) {
+      const handle = await this._opfsHandleViaAbsolutePath(root, entry);
+      if (handle instanceof FileSystemFileHandle) {
+        const writable = await handle.createWritable();
+        await writable.write(parseSerializedFile(entry));
+        await writable.close();
       }
     }
-
-    const root = await this._global.navigator.storage.getDirectory();
-    await walk(root, tree);
   }
 
   async restore(originState: SetOriginStorage | undefined) {
@@ -326,7 +331,8 @@ export class StorageScript {
         await root.removeEntry(name, { recursive: true });
 
 
-      await this._restoreOPFS(originState?.opfs ?? []);
+      if (originState?.opfs)
+        await this._restoreOPFS(originState.opfs);
 
     } catch (e) {
       throw new Error('Unable to restore OPFS: ' + e.message);

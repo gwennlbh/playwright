@@ -5153,24 +5153,24 @@ export type IndexedDBDatabase = {
 };
 
 export type FSEntry = {
-  type: 'file' | 'folder',
+  filepath: string,
+  type: 'file' | 'empty-folder',
   base64?: string,
   contentType?: string,
-  entries: FSEntry[],
 };
 
 export type SetOriginStorage = {
   origin: string,
-  opfs?: FSEntry,
   localStorage: NameValue[],
   indexedDB?: IndexedDBDatabase[],
+  opfs?: FSEntry[],
 };
 
 export type OriginStorage = {
   origin: string,
-  opfs?: FSEntry,
   localStorage: NameValue[],
   indexedDB?: IndexedDBDatabase[],
+  opfs?: FSEntry[],
 };
 
 export type RecordHarOptions = {

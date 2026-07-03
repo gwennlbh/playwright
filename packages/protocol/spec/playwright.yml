@@ -340,41 +340,42 @@ IndexedDBDatabase:
 FSEntry:
   type: object
   properties:
+    filepath: string
     type:
       type: enum
       literals:
       - file
-      - folder
+      - empty-folder
     base64: string?
     contentType: string?
-    entries:
-      type: array
-      # TODO: recursive types
-      items: FSEntry
 
 SetOriginStorage:
   type: object
   properties:
     origin: string
-    opfs: FSEntry?
     localStorage:
       type: array
       items: NameValue
     indexedDB:
       type: array?
       items: IndexedDBDatabase
+    opfs:
+      type: array?
+      items: FSEntry
 
 OriginStorage:
   type: object
   properties:
     origin: string
-    opfs: FSEntry?
     localStorage:
       type: array
       items: NameValue
     indexedDB:
       type: array?
       items: IndexedDBDatabase
+    opfs:
+      type: array?
+      items: FSEntry
 
 RecordHarOptions:
   type: object

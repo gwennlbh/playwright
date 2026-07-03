@@ -78,11 +78,11 @@ Methods like [`method: APIRequestContext.get`] take the base URL into considerat
     - `localStorage` <[Array]<[Object]>>
       - `name` <[string]>
       - `value` <[string]>
-    - `opfs` <[Object]>
-      - `type` <[FSEntryType]<"file"|"folder">> Type of the entry. "folder" for the root of the OPFS
+    - `opfs` <[Array]<[Object]>> Entries for the Origin Private Filesystem
+      - `filepath` <[string]> Absolute path to the entry
+      - `type` <[FSEntryType]<"file"|"empty-folder">> Type of the entry.
       - `base64` ?<[string]> Contents of the file, for "file" entries
       - `contentType` ?<[string]> Content type of the file, for "file" entries
-      - `entries` ?<[Array]<[Object]<[string], [any]>>> Array of child entries (recursive), for "folder" entries
 
 Populates context with given storage state. This option can be used to initialize context with logged-in information
 obtained via [`method: BrowserContext.storageState`] or [`method: APIRequestContext.storageState`]. Either a path to the

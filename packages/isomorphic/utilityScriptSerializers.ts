@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { FSFile } from '@injected/storageScript';
+import { FSEntry } from '@injected/storageScript';
 
 type TypedArrayKind = 'i8' | 'ui8' | 'ui8c' | 'i16' | 'ui16' | 'i32' | 'ui32' | 'f32' | 'f64' | 'bi64' | 'bui64';
 
@@ -192,25 +192,23 @@ export function serializeAsCallArgument(value: any, handleSerializer: (value: an
 }
 
 // Getting a File object's contents requires async
-export async function serializeFile(value: File): Promise<FSFile> {
+export async function serializeFile(directory: string, value: File): Promise<FSEntry> {
   return {
-    name: value.name,
+    filepath: `${directory}/${value.name}`,
     base64: typedArrayToBase64(await value.bytes()),
-    lastModified: value.lastModified,
     contentType: value.type,
     type: 'file',
   };
 }
 
-export function parseSerializedFile(value: FSFile): File {
-  return new File(
-    [base64ToTypedArray(value.base64, Uint8Array)],
-    value.name,
-    {
-      type: value.contentType,
-      lastModified: value.lastModified
-    }
-  )
+export function parseSerializedFile(value: FSEntry): File {
+  const name = value.filepath.split('/').at(-1);
+  if (!name)
+    throw new Error('File has no name');
+
+  const content = value.base64 ? [base64ToTypedArray(value.base64, Uint8Array)] : [];
+
+  return new File(content, name, { type: value.contentType, });
 }
 
 function serialize(value: any, handleSerializer: (value: any) => HandleOrValue, visitorInfo: VisitorInfo): SerializedValue {

@@ -17568,11 +17568,19 @@ export interface APIRequest {
           value: string;
         }>;
 
-        opfs: {
+        /**
+         * Entries for the Origin Private Filesystem
+         */
+        opfs: Array<{
           /**
-           * Type of the entry. "folder" for the root of the OPFS
+           * Absolute path to the entry
            */
-          type: "file"|"folder";
+          filepath: string;
+
+          /**
+           * Type of the entry.
+           */
+          type: "file"|"empty-folder";
 
           /**
            * Contents of the file, for "file" entries
@@ -17583,12 +17591,7 @@ export interface APIRequest {
            * Content type of the file, for "file" entries
            */
           contentType?: string;
-
-          /**
-           * Array of child entries (recursive), for "folder" entries
-           */
-          entries?: Array<{ [key: string]: any; }>;
-        };
+        }>;
       }>;
     };
 

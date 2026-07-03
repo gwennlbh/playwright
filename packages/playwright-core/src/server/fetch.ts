@@ -679,7 +679,7 @@ export class BrowserContextAPIRequestContext extends APIRequestContext {
     return await this._context.cookies(progress, url.toString());
   }
 
-  override async storageState(progress: Progress, {indexedDB = false, opfs =false}): Promise<channels.APIRequestContextStorageStateResult> {
+  override async storageState(progress: Progress, { indexedDB = false, opfs = false }): Promise<channels.APIRequestContextStorageStateResult> {
     return this._context.storageState(progress, { indexedDB, opfs });
   }
 }
@@ -695,7 +695,7 @@ export class GlobalAPIRequestContext extends APIRequestContext {
     super(playwright);
     this.attribution.context = this;
     if (options.storageState) {
-      this._origins = options.storageState.origins?.map(origin => ({ indexedDB: [], ...origin }));
+      this._origins = options.storageState.origins?.map(origin => ({ indexedDB: [], opfs: [], ...origin }));
       this._cookieStore.addCookies(options.storageState.cookies || []);
     }
     verifyClientCertificates(options.clientCertificates);
@@ -736,7 +736,7 @@ export class GlobalAPIRequestContext extends APIRequestContext {
     return this._cookieStore.cookies(url);
   }
 
-  override async storageState(progress: Progress, {indexedDB = false, opfs = false}): Promise<channels.APIRequestContextStorageStateResult> {
+  override async storageState(progress: Progress, { indexedDB = false, opfs = false }): Promise<channels.APIRequestContextStorageStateResult> {
     return {
       cookies: this._cookieStore.allCookies(),
       origins: (this._origins || []).map(origin => ({ ...origin, indexedDB: indexedDB ? origin.indexedDB : [], opfs: opfs ? origin.opfs : undefined })),

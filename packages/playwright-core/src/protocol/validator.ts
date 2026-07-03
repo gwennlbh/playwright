@@ -2914,22 +2914,22 @@ scheme.IndexedDBDatabase = tObject({
   })),
 });
 scheme.FSEntry = tObject({
-  type: tEnum(['file', 'folder']),
+  filepath: tString,
+  type: tEnum(['file', 'empty-folder']),
   base64: tOptional(tString),
   contentType: tOptional(tString),
-  entries: tArray(tType('FSEntry')),
 });
 scheme.SetOriginStorage = tObject({
   origin: tString,
-  opfs: tOptional(tType('FSEntry')),
   localStorage: tArray(tType('NameValue')),
   indexedDB: tOptional(tArray(tType('IndexedDBDatabase'))),
+  opfs: tOptional(tArray(tType('FSEntry'))),
 });
 scheme.OriginStorage = tObject({
   origin: tString,
-  opfs: tOptional(tType('FSEntry')),
   localStorage: tArray(tType('NameValue')),
   indexedDB: tOptional(tArray(tType('IndexedDBDatabase'))),
+  opfs: tOptional(tArray(tType('FSEntry'))),
 });
 scheme.RecordHarOptions = tObject({
   content: tOptional(tEnum(['embed', 'attach', 'omit'])),
