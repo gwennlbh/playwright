@@ -51,7 +51,6 @@ export type FSFile = FSEntry & {
   type: 'file';
   base64: string;
   contentType: string;
-  lastModified: number;
 };
 
 export type FSFolder = FSEntry & {
