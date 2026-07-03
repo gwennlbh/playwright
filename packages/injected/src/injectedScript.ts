@@ -25,7 +25,7 @@ import { beginDOMCaches, enclosingShadowRootOrDocument, endDOMCaches, isElementV
 import { Highlight } from './highlight';
 import { kLayoutSelectorNames, layoutSelectorScore } from './layoutSelectorUtils';
 import { createRoleEngine } from './roleSelectorEngine';
-import { beginAriaCaches, endAriaCaches, getAriaDisabled, getAriaRole, getCheckedAllowMixed, getCheckedWithoutMixed, getElementAccessibleDescription, getElementAccessibleErrorMessage, getElementAccessibleName, getReadonly } from './roleUtils';
+import { beginAriaCaches, endAriaCaches, getAriaDisabled, getAriaRole, getCheckedAllowMixed, getCheckedWithoutMixed, getElementAccessibleDescription, getElementAccessibleErrorMessage, getElementAccessibleNameText, getReadonly } from './roleUtils';
 import { SelectorEvaluatorImpl, sortInDOMOrder } from './selectorEvaluator';
 import { generateSelector } from './selectorGenerator';
 import { elementMatchesText, elementText, getElementLabels } from './selectorUtils';
@@ -43,19 +43,8 @@ import type { SelectorEngine, SelectorRoot } from './selectorEngine';
 import type { GenerateSelectorOptions } from './selectorGenerator';
 import type { ElementText, TextMatcher } from './selectorUtils';
 import type { Builtins } from './utilityScript';
+import type { ExpectedTextValue, Point, Rect } from '@protocol/structs';
 
-
-type ExpectedTextValue = {
-  string?: string,
-  regexSource?: string,
-  regexFlags?: string,
-  matchSubstring?: boolean,
-  ignoreCase?: boolean,
-  normalizeWhiteSpace?: boolean,
-};
-
-type Point = { x: number, y: number };
-type Rect = Point & { width: number, height: number };
 
 export type FrameExpectParams = {
   selector?: string,
@@ -114,7 +103,6 @@ export class InjectedScript {
   readonly window: Window & typeof globalThis;
   readonly document: Document;
   readonly consoleApi: ConsoleAPI;
-  private _lastAriaSnapshotForTrack = new Map<string, AriaSnapshot>();
   private _lastAriaSnapshotForQuery: AriaSnapshot | undefined;
 
   // Recorder must use any external dependencies through InjectedScript.
@@ -125,8 +113,8 @@ export class InjectedScript {
     cacheNormalizedWhitespaces,
     elementText,
     getAriaRole,
+    getElementAccessibleNameText,
     getElementAccessibleDescription,
-    getElementAccessibleName,
     isElementVisible,
     isInsideScope,
     normalizeWhiteSpace,
@@ -324,23 +312,16 @@ export class InjectedScript {
   }
 
   ariaSnapshot(node: Node, options: AriaTreeOptions): string {
-    return this.incrementalAriaSnapshot(node, options).full;
+    return this.ariaSnapshotWithRefs(node, options).text;
   }
 
-  incrementalAriaSnapshot(node: Node, options: AriaTreeOptions & { track?: string, depth?: number }): { full: string, incremental?: string, iframeRefs: string[], iframeDepths: Record<string, number> } {
+  ariaSnapshotWithRefs(node: Node, options: AriaTreeOptions & { depth?: number }): { text: string, iframeRefs: string[], iframeDepths: Record<string, number> } {
     if (node.nodeType !== Node.ELEMENT_NODE)
       throw this.createStacklessError('Can only capture aria snapshot of Element nodes.');
     const ariaSnapshot = generateAriaTree(node as Element, options);
     const rendered = renderAriaTree(ariaSnapshot, options);
-    let incremental: string | undefined;
-    if (options.track) {
-      const previousSnapshot = this._lastAriaSnapshotForTrack.get(options.track);
-      if (previousSnapshot)
-        incremental = renderAriaTree(ariaSnapshot, options, previousSnapshot).text;
-      this._lastAriaSnapshotForTrack.set(options.track, ariaSnapshot);
-    }
     this._lastAriaSnapshotForQuery = ariaSnapshot;
-    return { full: rendered.text, incremental, iframeRefs: ariaSnapshot.iframeRefs, iframeDepths: rendered.iframeDepths };
+    return { text: rendered.text, iframeRefs: ariaSnapshot.iframeRefs, iframeDepths: rendered.iframeDepths };
   }
 
   ariaSnapshotForRecorder(): { ariaSnapshot: string, refs: Map<Element, string> } {
@@ -739,8 +720,8 @@ export class InjectedScript {
 
   _createAriaRefEngine() {
     const queryAll = (root: SelectorRoot, selector: string): Element[] => {
-      const result = this._lastAriaSnapshotForQuery?.elements?.get(selector);
-      return result && result.isConnected ? [result] : [];
+      const result = this._lastAriaSnapshotForQuery?.info?.get(selector);
+      return result && result.element.isConnected ? [result.element] : [];
     };
     return { queryAll };
   }
@@ -1676,7 +1657,7 @@ export class InjectedScript {
       } else if (expression === 'to.have.text') {
         received = options.useInnerText ? (element as HTMLElement).innerText : elementText(new Map(), element).full;
       } else if (expression === 'to.have.accessible.name') {
-        received = getElementAccessibleName(element, false /* includeHidden */);
+        received = getElementAccessibleNameText(element, false /* includeHidden */);
       } else if (expression === 'to.have.accessible.description') {
         received = getElementAccessibleDescription(element, false /* includeHidden */);
       } else if (expression === 'to.have.accessible.error.message') {

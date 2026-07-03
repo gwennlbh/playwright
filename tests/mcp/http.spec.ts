@@ -161,7 +161,7 @@ test('http transport browser sigint', async ({ serverEndpoint, server }) => {
   });
 });
 
-test('http transport browser lifecycle (isolated, multiclient)', async ({ serverEndpoint, server }) => {
+test('http transport browser lifecycle (isolated, multiclient)', { annotation: { type: 'issue', description: 'https://github.com/microsoft/playwright/issues/41539' } }, async ({ serverEndpoint, server }) => {
   const { url, stderr } = await serverEndpoint({ args: ['--isolated'] });
 
   const transport1 = new StreamableHTTPClientTransport(new URL('/mcp', url));
@@ -200,6 +200,7 @@ test('http transport browser lifecycle (isolated, multiclient)', async ({ server
     'delete http session': 3,
     'create context': 3,
     'create browser (isolated)': 1,
+    'close context': 2,
     'close browser': 1,
   });
 });
@@ -229,6 +230,7 @@ test('http transport browser lifecycle (isolated, concurrent clients)', { annota
     'delete http session': 3,
     'create context': 3,
     'create browser (isolated)': 1,
+    'close context': 2,
     'close browser': 1,
   });
 });
@@ -350,13 +352,9 @@ test('client should receive list roots request', async ({ serverEndpoint, server
   const { url } = await serverEndpoint();
   const transport = new StreamableHTTPClientTransport(url);
   const client = new Client({ name: 'test', version: '1.0.0' }, { capabilities: { roots: {} } });
-  let rootsListedCallback;
-  const rootsListedPromise = new Promise((resolve, reject) => {
-    rootsListedCallback = resolve;
-    setTimeout(() => reject(new Error('timeout waiting for ListRootsRequestSchema')), 5_000);
-  });
+  const requests = [];
   client.setRequestHandler(ListRootsRequestSchema, async request => {
-    rootsListedCallback('success');
+    requests.push(request);
     return {
       roots: [
         {
@@ -371,7 +369,7 @@ test('client should receive list roots request', async ({ serverEndpoint, server
     name: 'browser_navigate',
     arguments: { url: server.HELLO_WORLD },
   });
-  expect(await rootsListedPromise).toBe('success');
+  await expect.poll(() => requests).toEqual([{ method: 'roots/list' }]);
 });
 
 test('should close session when heartbeat ping is not answered', async ({ serverEndpoint, server }) => {

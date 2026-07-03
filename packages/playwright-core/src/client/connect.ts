@@ -78,7 +78,7 @@ export async function connectToEndpoint(parentConnection: Connection, params: ch
   const localUtils = parentConnection.localUtils();
   const transport = localUtils ? new JsonPipeTransport(localUtils) : new WebSocketTransport();
   const connectHeaders = await transport.connect(params);
-  const connection = new Connection(parentConnection._platform, localUtils, parentConnection._instrumentation, connectHeaders);
+  const connection = new Connection(localUtils, parentConnection._instrumentation, connectHeaders);
   connection.markAsRemote();
   connection.on('close', () => transport.close());
 
@@ -116,13 +116,13 @@ class JsonPipeTransport implements Transport {
   }
 
   async connect(params: channels.LocalUtilsConnectParams) {
-    const { pipe, headers: connectHeaders } = await this._owner._channel.connect(params);
+    const { pipe, headers: connectHeaders } = await this._owner._channel.connect(params, undefined);
     this._pipe = pipe;
     return connectHeaders;
   }
 
   async send(message: object) {
-    await this._pipe!.send({ message });
+    await this._pipe!.send({ message }, undefined);
   }
 
   onMessage(callback: (message: object) => void) {
@@ -134,7 +134,7 @@ class JsonPipeTransport implements Transport {
   }
 
   async close() {
-    await this._pipe!.close().catch(() => {});
+    await this._pipe!.close({}, undefined).catch(() => {});
   }
 }
 

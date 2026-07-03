@@ -111,7 +111,7 @@ export class Response {
 
   private async _writeFile(resolvedFile: ResolvedFile, data: Buffer | string | null) {
     if (typeof data === 'string')
-      await fs.promises.writeFile(resolvedFile.fileName, this._redactSecrets(data), 'utf-8');
+      await fs.promises.writeFile(resolvedFile.fileName, this._context.redactSecrets(data), 'utf-8');
     else if (data)
       await fs.promises.writeFile(resolvedFile.fileName, data);
     this._writtenFiles.add(path.resolve(resolvedFile.fileName));
@@ -154,16 +154,6 @@ export class Response {
     this._includeSnapshotBoxes = boxes;
     this._includeSnapshotRoot = root;
   }
-
-  private _redactSecrets(text: string): string {
-    for (const [secretName, secretValue] of Object.entries(this._context.config.secrets ?? {})) {
-      if (!secretValue)
-        continue;
-      text = text.replaceAll(secretValue, `<secret>${secretName}</secret>`);
-    }
-    return text;
-  }
-
 
   async serialize(): Promise<CallToolResult> {
     const allSections = await this._build();
@@ -211,7 +201,7 @@ export class Response {
     const content: (TextContent | ImageContent)[] = [
       {
         type: 'text',
-        text: sanitizeUnicode(this._redactSecrets(serializedText)),
+        text: sanitizeUnicode(this._context.redactSecrets(serializedText)),
       }
     ];
 
@@ -336,6 +326,9 @@ export function renderTabMarkdown(tab: TabHeader): string[] {
     lines.push(`- Page Title: ${tab.title}`);
   if (tab.crashed)
     lines.push(`- Page status: crashed`);
+  const status = tab.mainDocumentStatus;
+  if (status && (status.status < 200 || status.status >= 300))
+    lines.push(`- HTTP status: ${status.status}${status.statusText ? ' ' + status.statusText : ''}`);
   if (tab.console.errors || tab.console.warnings)
     lines.push(`- Console: ${tab.console.errors} errors, ${tab.console.warnings} warnings`);
   return lines;

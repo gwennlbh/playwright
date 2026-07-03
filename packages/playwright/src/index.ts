@@ -24,12 +24,10 @@ import { escapeHTML } from '@isomorphic/stringUtils';
 import { jsonStringifyForceASCII } from '@utils/ascii';
 import { createGuid } from '@utils/crypto';
 import { debugMode } from '@utils/debug';
-import { setBoxedStackPrefixes } from '@utils/nodePlatform';
 import { currentZone } from '@utils/zones';
 import { buildErrorContext } from './errorContext';
 import { config, testType } from './common';
 import * as globals from './globals';
-import { packageRoot } from './package';
 import { createCustomMessageHandler, runDaemonForContext } from './mcp/test/browserBackend';
 
 import type { Fixtures, PlaywrightTestArgs, PlaywrightTestOptions, PlaywrightWorkerArgs, PlaywrightWorkerOptions, ScreenshotMode, TestInfo, TestType, VideoMode } from '../types/test';
@@ -45,8 +43,6 @@ import type { BrowserContext, BrowserContextOptions, LaunchOptions, Page, Tracin
 
 export { expect } from './matchers/expect';
 export const _baseTest: TestType<{}, {}> = testType.rootTestType.test;
-
-setBoxedStackPrefixes([packageRoot]);
 
 if ((process as any)['__pw_initiator__']) {
   const originalStackTraceLimit = Error.stackTraceLimit;

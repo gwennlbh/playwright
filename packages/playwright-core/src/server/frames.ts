@@ -16,6 +16,7 @@
  */
 
 import yaml from 'yaml';
+import { assertionAbortedMessage } from '@isomorphic/abortSignal';
 import { parseAriaSnapshotUnsafe } from '@isomorphic/ariaSnapshot';
 import { isInvalidSelectorError } from '@isomorphic/selectorParser';
 import { ManualPromise } from '@isomorphic/manualPromise';
@@ -28,7 +29,7 @@ import { makeWaitForNextTask } from '@utils/task';
 import { createGuid } from '@utils/crypto';
 import { BrowserContext } from './browserContext';
 import * as dom from './dom';
-import { TimeoutError, isTargetClosedError } from './errors';
+import { TimeoutError, AbortError, isTargetClosedError } from './errors';
 import { prepareFilesForUpload } from './fileUploadUtils';
 import { FrameSelectors } from './frameSelectors';
 import { helper } from './helper';
@@ -235,6 +236,7 @@ export class FrameManager {
     const frame = this._frames.get(frameId)!;
     this.removeChildFramesRecursively(frame);
     this._clearWebSockets(frame);
+    const previousUrl = frame._url;
     frame._url = url;
     frame._name = name;
 
@@ -269,6 +271,11 @@ export class FrameManager {
     if (!initial) {
       frame.apiLog(`  navigated to "${url}"`);
       this._page.frameNavigatedToNewDocument(frame);
+      // Re-number the main frame when it navigates away from a real document, so that aria
+      // refs (f<seq>e<n>) minted against the previous document do not accidentally resolve
+      // to elements in the new one.
+      if (frame === this._mainFrame && previousUrl && previousUrl !== 'about:blank')
+        frame.seq = this._allocateFrameSeq();
     }
     // Restore pending if any - see comments above about keepPending.
     frame._setPendingDocument(keepPending);
@@ -378,7 +385,7 @@ export class FrameManager {
 
   private _inflightRequestFinished(request: network.Request) {
     const frame = request.frame();
-    if (request._isFavicon || !frame)
+    if (this._isExcludedFromNetworkIdle(request) || !frame)
       return;
     if (!frame._inflightRequests.has(request))
       return;
@@ -389,11 +396,19 @@ export class FrameManager {
 
   private _inflightRequestStarted(request: network.Request) {
     const frame = request.frame();
-    if (request._isFavicon || !frame)
+    if (this._isExcludedFromNetworkIdle(request) || !frame)
       return;
     frame._inflightRequests.add(request);
     if (frame._inflightRequests.size === 1)
       frame._stopNetworkIdleTimer();
+  }
+
+  private _isExcludedFromNetworkIdle(request: network.Request): boolean {
+    if (request._isFavicon)
+      return true;
+    if (request.resourceType() === 'eventsource')
+      return true;
+    return false;
   }
 
   interceptConsoleMessage(message: ConsoleMessage): boolean {
@@ -501,7 +516,7 @@ export class Frame extends SdkObject<FrameEventMap> {
   static Events = FrameEvent;
 
   _id: string;
-  readonly seq: number;
+  seq: number;
   _firedLifecycleEvents = new Set<types.LifecycleEvent>();
   private _firedNetworkIdleSelf = false;
   _currentDocument: DocumentInfo;
@@ -925,9 +940,9 @@ export class Frame extends SdkObject<FrameEventMap> {
     return progress.race(this.selectors.queryAll(selector));
   }
 
-  async queryCount(progress: Progress, selector: string, options: any): Promise<number> {
+  async queryCount(progress: Progress, selector: string): Promise<number> {
     try {
-      return await progress.race(this.selectors.queryCount(selector, options));
+      return await progress.race(this.selectors.queryCount(selector));
     } catch (e) {
       if (this.isNonRetriableError(e))
         throw e;
@@ -1554,6 +1569,8 @@ export class Frame extends SdkObject<FrameEventMap> {
         progress.log(e.message);
       if (e instanceof TimeoutError)
         details.timedOut = true;
+      if (e instanceof AbortError)
+        details.customErrorMessage = assertionAbortedMessage(e.cause);
       throw new ExpectError(details);
     }
   }
@@ -1599,30 +1616,49 @@ export class Frame extends SdkObject<FrameEventMap> {
     return { matches, received };
   }
 
-  async waitForFunctionExpression<R>(progress: Progress, expression: string, isFunction: boolean | undefined, arg: any, options: { pollingInterval?: number }, world: types.World = 'main'): Promise<js.SmartHandle<R>> {
+  async waitForFunctionExpression<R>(progress: Progress, expression: string, isFunction: boolean | undefined, arg: any, options: { pollingInterval?: number, selector?: string, strict?: boolean }, world: types.World = 'main'): Promise<js.SmartHandle<R>> {
     if (typeof options.pollingInterval === 'number')
       assert(options.pollingInterval > 0, 'Cannot poll with non-positive interval: ' + options.pollingInterval);
     expression = js.normalizeEvaluationExpression(expression, isFunction);
-    return this.retryWithProgressAndTimeouts(progress, [100], async () => {
-      const context = world === 'main' ? await progress.race(this.mainContext()) : await progress.race(this.utilityContext());
-      const injectedScript = await progress.race(context.injectedScript());
-      const handle = await progress.race(injectedScript.evaluateHandle((injected, { expression, isFunction, polling, arg }) => {
+    if (options.selector !== undefined)
+      progress.log(`waiting for ${this._asLocator(options.selector)}`);
+    return this.retryWithProgressAndBackoff(progress, async (progress, continuePolling) => {
+      let injectedScript: js.JSHandle<InjectedScript>;
+      let info: SelectorInfo | undefined;
+      if (options.selector !== undefined) {
+        const resolved = await progress.race(this.selectors.resolveInjectedForSelector(options.selector, { strict: options.strict, mainWorld: true }));
+        if (!resolved)
+          return continuePolling;
+        injectedScript = resolved.injected;
+        info = resolved.info;
+      } else {
+        const context = world === 'main' ? await progress.race(this.mainContext()) : await progress.race(this.utilityContext());
+        injectedScript = await progress.race(context.injectedScript());
+      }
+      const handle = await progress.race(injectedScript.evaluateHandle((injected, { info, expression, isFunction, polling, arg }) => {
         let evaledExpression: any;
         const predicate = (): R => {
+          const args = [arg];
+          if (info) {
+            const element = injected.querySelector(info.parsed, document, info.strict);
+            if (!element)
+              return undefined as any;
+            args.unshift(element);
+          }
           // NOTE: make sure to use `globalThis.eval` instead of `self.eval` due to a bug with sandbox isolation
           // in firefox.
           // See https://bugzilla.mozilla.org/show_bug.cgi?id=1814898
           let result = evaledExpression ?? globalThis.eval(expression);
           if (isFunction === true) {
             evaledExpression = result;
-            result = result(arg);
+            result = result(...args);
           } else if (isFunction === false) {
             result = result;
           } else {
             // auto detect.
             if (typeof result === 'function') {
               evaledExpression = result;
-              result = result(arg);
+              result = result(...args);
             }
           }
           return result;
@@ -1653,12 +1689,14 @@ export class Frame extends SdkObject<FrameEventMap> {
 
         next();
         return { result, abort: () => aborted = true };
-      }, { expression, isFunction, polling: options.pollingInterval, arg }));
+      }, { info, expression, isFunction, polling: options.pollingInterval, arg }));
       try {
         return await progress.race(handle.evaluateHandle(h => h.result));
       } catch (error) {
         // Note: it is important to await "abort()" to prevent any side effects
-        // after this method returns.
+        // after this method returns. We intentionally do not race against progress
+        // here - it is already resolved/aborted, and the abort must run to completion.
+        // eslint-disable-next-line progress/await-must-use-progress
         await handle.evaluate(h => h.abort()).catch(() => {});
         throw error;
       } finally {
@@ -1813,10 +1851,7 @@ export class Frame extends SdkObject<FrameEventMap> {
     }, { source, arg });
   }
 
-  async ariaSnapshot(progress: Progress, options: { mode?: 'ai' | 'default', track?: string, doNotRenderActive?: boolean, selector?: string, depth?: number, boxes?: boolean } = {}): Promise<{ snapshot: string }> {
-    if (options.selector && options.track)
-      throw new Error('Cannot specify both selector and track options');
-
+  async ariaSnapshot(progress: Progress, options: { mode?: 'ai' | 'default', doNotRenderActive?: boolean, selector?: string, depth?: number, boxes?: boolean } = {}): Promise<{ snapshot: string }> {
     if (options.selector && options.mode !== 'ai') {
       // Non-ai locator snapshot is auto-waiting and does not include iframes.
       const snapshot = await this._retryWithProgressIfNotConnected(progress, options.selector, { strict: true, performActionPreChecks: true }, async (progress, handle) => {
@@ -1837,9 +1872,8 @@ export class Frame extends SdkObject<FrameEventMap> {
       targetFrame = this;
     }
 
-    const result = await ariaSnapshotForFrame(progress, targetFrame, { ...options, info });
-    const snapshot = options.track && result.incremental ? result.incremental.join('\n') : result.full.join('\n');
-    return { snapshot };
+    const lines = await ariaSnapshotForFrame(progress, targetFrame, { ...options, info });
+    return { snapshot: lines.join('\n') };
   }
 
   private _asLocator(selector: string) {

@@ -385,6 +385,20 @@ const snapshot = declareCommand({
   toolParams: ({ filename, target, depth, boxes }) => ({ filename, target, depth, boxes }),
 });
 
+const find = declareCommand({
+  name: 'find',
+  description: 'Search the page snapshot for text or a regexp, returning matching nodes with surrounding context (like search snippets)',
+  category: 'core',
+  args: z.object({
+    text: z.string().optional().describe('Plain text to search for in the page snapshot (case-insensitive substring match)'),
+  }),
+  options: z.object({
+    regex: z.string().optional().describe('Regular expression to search for in the page snapshot. Provide either a text argument or --regex, not both.'),
+  }),
+  toolName: 'browser_find',
+  toolParams: ({ text, regex }) => ({ text, regex }),
+});
+
 const generateLocator = declareCommand({
   name: 'generate-locator',
   description: 'Generate a Playwright locator for the given element',
@@ -791,9 +805,10 @@ const screenshot = declareCommand({
   options: z.object({
     filename: z.string().optional().describe('File name to save the screenshot to. Defaults to `page-{timestamp}.{png|jpeg}` if not specified.'),
     ['full-page']: z.boolean().optional().describe('When true, takes a screenshot of the full scrollable page, instead of the currently visible viewport.'),
+    hires: z.boolean().optional().describe('When true, captures a high-resolution screenshot using device pixels (accounts for the device pixel ratio), instead of CSS pixels.'),
   }),
   toolName: 'browser_take_screenshot',
-  toolParams: ({ target, filename, ['full-page']: fullPage }) => ({ filename, target, fullPage }),
+  toolParams: ({ target, filename, ['full-page']: fullPage, hires }) => ({ filename, target, fullPage, scale: hires ? 'device' : undefined }),
 });
 
 const pdfSave = declareCommand({
@@ -1148,6 +1163,7 @@ const commandsArray: AnyCommandSchema[] = [
   check,
   uncheck,
   snapshot,
+  find,
   evaluate,
   consoleList,
   dialogAccept,

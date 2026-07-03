@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-import { rewriteErrorMessage } from '@isomorphic/stackTrace';
-import { TimeoutError } from './errors';
+import { rewriteErrorMessage } from '@utils/stackTrace';
+import { createGuid } from '@utils/crypto';
+import { currentZone } from '@utils/zones';
+import { AbortError, TimeoutError } from './errors';
 
 import type { ChannelOwner } from './channelOwner';
 import type * as channels from './channels';
 import type { EventEmitter } from 'events';
-import type { Zone } from '@isomorphic/platform';
+import type { Zone } from '@utils/zones';
 
 export class Waiter {
   private _dispose: (() => void)[];
@@ -33,9 +35,9 @@ export class Waiter {
   private _savedZone: Zone;
 
   constructor(channelOwner: ChannelOwner, event: string) {
-    this._waitId = channelOwner._platform.createGuid();
+    this._waitId = createGuid();
     this._channelOwner = channelOwner;
-    this._savedZone = channelOwner._platform.zones.current().pop();
+    this._savedZone = currentZone().without('apiZone');
 
     const title = `Wait for event "${event}"`;
     this._sendWaitInfo({ waitId: this._waitId, phase: 'before', event }, { title });
@@ -89,18 +91,23 @@ export class Waiter {
     if (!signal)
       return;
     if (signal.aborted) {
-      this.rejectImmediately(signalToError(signal));
+      this.rejectImmediately(new AbortError(undefined, { cause: signal.reason }));
       return;
     }
     let rejectPromise: (e: any) => void;
     const promise = new Promise<void>((_, reject) => { rejectPromise = reject; });
-    const listener = () => rejectPromise!(signalToError(signal));
+    const listener = () => rejectPromise!(new AbortError(undefined, { cause: signal.reason }));
     signal.addEventListener('abort', listener, { once: true });
     this._rejectOn(promise, () => signal.removeEventListener('abort', listener));
   }
 
   rejectImmediately(error: Error) {
     this._immediateError = error;
+  }
+
+  throwIfImmediatelyRejected() {
+    if (this._immediateError)
+      throw this._immediateError;
   }
 
   dispose() {
@@ -158,14 +165,6 @@ function waitForEvent<T = void>(emitter: EventEmitter, event: string, savedZone:
   });
   const dispose = () => emitter.removeListener(event, listener);
   return { promise, dispose };
-}
-
-function signalToError(signal: AbortSignal): Error {
-  const reason = signal.reason;
-  if (reason instanceof Error)
-    return reason;
-  const message = typeof reason?.message === 'string' ? reason.message : reason;
-  return new Error(String(message ?? 'The operation was aborted'));
 }
 
 function waitForTimeout(timeout: number): { promise: Promise<void>, dispose: () => void } {

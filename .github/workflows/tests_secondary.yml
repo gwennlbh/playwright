@@ -22,6 +22,7 @@ permissions:
 jobs:
   test_mac:
     name: ${{ matrix.os }} (${{ matrix.browser }})
+    if: ${{ github.event_name == 'push' || github.event.label.name == 'CQ1' }}
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     strategy:
       fail-fast: false
@@ -47,6 +48,7 @@ jobs:
 
   test_win:
     name: "Windows"
+    if: ${{ github.event_name == 'push' || github.event.label.name == 'CQ1' }}
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     strategy:
       fail-fast: false
@@ -66,6 +68,7 @@ jobs:
 
   test-package-installations-other-node-versions:
     name: "Installation Test ${{ matrix.os }} (${{ matrix.node_version }})"
+    if: ${{ github.event_name == 'push' || github.event.label.name == 'CQ1' }}
     environment: ${{ github.event_name == 'push' && 'allow-uploading-flakiness-results' || null }}
     runs-on: ${{ matrix.os  }}
     strategy:
@@ -178,18 +181,6 @@ jobs:
         flakiness-subscription-id: ${{ secrets.AZURE_FLAKINESS_DASHBOARD_SUBSCRIPTION_ID }}
       env:
         PWTEST_CHANNEL: ${{ matrix.channel }}
-
-  build-playwright-driver:
-    name: "build-playwright-driver"
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v6
-    - uses: actions/setup-node@v6
-      with:
-        node-version: 20
-    - run: npm ci
-    - run: npm run build
-    - run: utils/build/build-playwright-driver.sh
 
   test_android:
     name: Android
